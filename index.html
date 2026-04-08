@@ -1,24 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attack Surface Mapper</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
             --bg: #080c14;
             --bg2: #0d1220;
             --bg3: #111827;
-            --border: rgba(99, 179, 237, 0.1);
-            --border2: rgba(99, 179, 237, 0.28);
+            --border: rgba(99,179,237,.1);
+            --border2: rgba(99,179,237,.28);
             --text: #e2e8f0;
             --muted: #4a5568;
             --sub: #718096;
@@ -30,31 +24,25 @@
             --teal: #4fd1c5;
             --pink: #f687b3;
         }
-
         body {
             background: var(--bg);
             color: var(--text);
-            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-family: 'SF Mono','Fira Code','Cascadia Code',monospace;
             overflow: hidden;
             height: 100vh;
             width: 100vw;
         }
-
         #topbar {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 0; left: 0; right: 0;
             z-index: 100;
             height: 48px;
-            background: rgba(8, 12, 20, 0.97);
+            background: rgba(8,12,20,.97);
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            justify-content: space-between;
             padding: 0 20px;
         }
-
         .logo {
             font-size: 12px;
             font-weight: 700;
@@ -63,27 +51,88 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            flex-shrink: 0;
         }
-
         .logo-dot {
-            width: 7px;
-            height: 7px;
+            width: 7px; height: 7px;
             border-radius: 50%;
             background: var(--blue);
             box-shadow: 0 0 8px var(--blue);
             animation: blink 2.5s ease-in-out infinite;
         }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-        @keyframes blink {
+        /* ── Scan bar ── */
+        #scan-bar {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            padding: 0 28px;
+        }
+        .scan-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(99,179,237,.04);
+            border: 1px solid var(--border2);
+            border-radius: 8px;
+            padding: 0 6px 0 12px;
+            width: 100%;
+            max-width: 460px;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .scan-wrap:focus-within {
+            border-color: rgba(99,179,237,.55);
+            box-shadow: 0 0 0 3px rgba(99,179,237,.07);
+        }
+        .scan-ico {
+            color: var(--blue);
+            font-size: 11px;
+            opacity: .4;
+            flex-shrink: 0;
+            user-select: none;
+        }
+        #domain-input {
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text);
+            font-family: 'SF Mono','Fira Code','Cascadia Code',monospace;
+            font-size: 12px;
+            height: 34px;
+            min-width: 0;
+            letter-spacing: .03em;
+        }
+        #domain-input::placeholder { color: var(--muted); font-size: 11px; }
+        #scan-btn {
+            background: rgba(99,179,237,.1);
+            border: 1px solid rgba(99,179,237,.25);
+            border-radius: 6px;
+            color: var(--blue);
+            font-family: 'SF Mono','Fira Code','Cascadia Code',monospace;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .15em;
+            padding: 5px 14px;
+            cursor: pointer;
+            transition: background .15s, border-color .15s;
+            flex-shrink: 0;
+            min-width: 72px;
+        }
+        #scan-btn:hover:not(:disabled) { background: rgba(99,179,237,.2); border-color: var(--blue); }
+        #scan-btn:disabled { opacity: .4; cursor: not-allowed; }
 
-            0%,
-            100% {
-                opacity: 1
-            }
-
-            50% {
-                opacity: .3
-            }
+        /* ── Progress bar ── */
+        #progress-bar {
+            position: fixed;
+            top: 48px; left: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--blue), var(--teal));
+            width: 0%;
+            transition: width .35s ease;
+            z-index: 200;
+            box-shadow: 0 0 10px rgba(99,179,237,.5);
         }
 
         .stats {
@@ -91,51 +140,22 @@
             gap: 20px;
             font-size: 11px;
             color: var(--muted);
+            flex-shrink: 0;
         }
+        .stats b { color: var(--blue); font-weight: 600; }
+        .stats .warn { color: var(--red); }
 
-        .stats b {
-            color: var(--blue);
-            font-weight: 600;
-        }
-
-        .stats .warn {
-            color: var(--red);
-        }
-
-        #svg-wrap {
-            width: 100vw;
-            height: 100vh;
-            padding-top: 48px;
-        }
-
-        svg {
-            width: 100%;
-            height: 100%;
-        }
-
-        .edge {
-            stroke: rgba(99, 179, 237, 0.13);
-            stroke-width: 1;
-            fill: none;
-        }
-
-        .nd {
-            cursor: pointer;
-        }
-
-        .nd .bg {
-            transition: filter .2s;
-        }
-
-        .nd:hover .bg {
-            filter: brightness(1.4);
-        }
+        #svg-wrap { width: 100vw; height: 100vh; padding-top: 48px; }
+        svg { width: 100%; height: 100%; }
+        .edge { stroke: rgba(99,179,237,.13); stroke-width: 1; fill: none; }
+        .nd { cursor: pointer; }
+        .nd .bg { transition: filter .2s; }
+        .nd:hover .bg { filter: brightness(1.4); }
 
         #panel {
             position: fixed;
-            right: 20px;
-            top: 68px;
-            width: 272px;
+            right: 20px; top: 68px;
+            width: 280px;
             background: var(--bg2);
             border: 1px solid var(--border2);
             border-radius: 12px;
@@ -145,96 +165,34 @@
             pointer-events: none;
             transform: translateX(14px);
             transition: opacity .22s, transform .22s;
+            max-height: calc(100vh - 90px);
+            overflow-y: auto;
         }
-
-        #panel.on {
-            opacity: 1;
-            pointer-events: all;
-            transform: translateX(0);
-        }
-
-        .p-tag {
-            font-size: 10px;
-            letter-spacing: .14em;
-            color: var(--muted);
-            margin-bottom: 5px;
-        }
-
-        .p-name {
-            font-size: 17px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .p-desc {
-            font-size: 11px;
-            color: var(--sub);
-            line-height: 1.55;
-            margin-bottom: 14px;
-        }
-
-        .p-div {
-            border: none;
-            border-top: 1px solid var(--border);
-            margin-bottom: 12px;
-        }
-
-        .p-sec {
-            font-size: 10px;
-            letter-spacing: .1em;
-            color: var(--muted);
-            margin-bottom: 8px;
-        }
-
-        .risk {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-size: 11px;
-            color: var(--sub);
-            padding: 4px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, .04);
-        }
-
-        .risk:last-child {
-            border: none;
-        }
-
-        .dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .c {
-            background: var(--red);
-            box-shadow: 0 0 5px var(--red);
-        }
-
-        .h {
-            background: var(--orange);
-        }
-
-        .m {
-            background: var(--green);
-        }
+        #panel.on { opacity: 1; pointer-events: all; transform: translateX(0); }
+        .p-tag { font-size: 10px; letter-spacing: .14em; color: var(--muted); margin-bottom: 5px; }
+        .p-name { font-size: 17px; font-weight: 700; margin-bottom: 4px; word-break: break-all; }
+        .p-desc { font-size: 11px; color: var(--sub); line-height: 1.6; margin-bottom: 14px; word-break: break-word; }
+        .p-div { border: none; border-top: 1px solid var(--border); margin-bottom: 12px; }
+        .p-sec { font-size: 10px; letter-spacing: .1em; color: var(--muted); margin-bottom: 8px; }
+        .risk { display: flex; align-items: flex-start; gap: 7px; font-size: 11px; color: var(--sub); padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); word-break: break-word; }
+        .risk:last-child { border: none; }
+        .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+        .c { background: var(--red); box-shadow: 0 0 5px var(--red); }
+        .h { background: var(--orange); }
+        .m { background: var(--green); }
 
         #hint {
             position: fixed;
-            bottom: 18px;
-            right: 20px;
+            bottom: 18px; right: 20px;
             font-size: 10px;
             color: var(--muted);
             text-align: right;
             line-height: 1.8;
             pointer-events: none;
         }
-
         #legend {
             position: fixed;
-            left: 18px;
-            bottom: 18px;
+            left: 18px; bottom: 18px;
             background: var(--bg2);
             border: 1px solid var(--border);
             border-radius: 10px;
@@ -242,60 +200,31 @@
             font-size: 10px;
             z-index: 50;
         }
-
-        .leg-head {
-            color: var(--muted);
-            letter-spacing: .1em;
-            margin-bottom: 9px;
-        }
-
-        .li {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            color: var(--sub);
-            margin-bottom: 5px;
-        }
-
-        .li:last-child {
-            margin: 0;
-        }
-
-        .ld {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-        }
+        .leg-head { color: var(--muted); letter-spacing: .1em; margin-bottom: 9px; }
+        .li { display: flex; align-items: center; gap: 7px; color: var(--sub); margin-bottom: 5px; }
+        .li:last-child { margin: 0; }
+        .ld { width: 7px; height: 7px; border-radius: 50%; }
 
         #btns {
             position: fixed;
-            left: 18px;
-            top: 68px;
+            left: 18px; top: 68px;
             display: flex;
             flex-direction: column;
             gap: 7px;
             z-index: 50;
         }
-
         .btn {
-            width: 34px;
-            height: 34px;
+            width: 34px; height: 34px;
             background: var(--bg2);
             border: 1px solid var(--border);
             border-radius: 8px;
             color: var(--sub);
             font-size: 15px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: flex; align-items: center; justify-content: center;
             transition: border-color .15s, color .15s;
         }
-
-        .btn:hover {
-            border-color: var(--blue);
-            color: var(--blue);
-        }
+        .btn:hover { border-color: var(--blue); color: var(--blue); }
 
         #tip {
             position: fixed;
@@ -309,459 +238,1048 @@
             z-index: 300;
             opacity: 0;
             transition: opacity .12s;
-            max-width: 190px;
+            max-width: 200px;
             line-height: 1.5;
         }
     </style>
 </head>
-
 <body>
 
-    <div id="topbar">
-        <div class="logo">
-            <div class="logo-dot"></div>ATTACK SURFACE MAPPER
-        </div>
-        <div class="stats">Nodes: <b id="sn">1</b> &nbsp;|&nbsp; Edges: <b id="se">0</b> &nbsp;|&nbsp; Critical: <b
-                class="warn" id="sc">0</b></div>
+<div id="topbar">
+    <div class="logo">
+        <div class="logo-dot"></div>ATTACK SURFACE MAPPER
     </div>
-
-    <div id="svg-wrap"><svg id="g"></svg></div>
-
-    <div id="panel">
-        <div class="p-tag" id="pt">—</div>
-        <div class="p-name" id="pn">—</div>
-        <div class="p-desc" id="pd">—</div>
-        <hr class="p-div">
-        <div class="p-sec">ATTACK VECTORS</div>
-        <div id="pr"></div>
-    </div>
-
-    <div id="btns">
-        <button class="btn" id="b-reset" title="Reset view">⌂</button>
-        <button class="btn" id="b-all" title="Expand all">⊕</button>
-        <button class="btn" id="b-none" title="Collapse all">⊖</button>
-    </div>
-
-    <div id="legend">
-        <div class="leg-head">CATEGORIES</div>
-        <div class="li">
-            <div class="ld" style="background:#63b3ed;box-shadow:0 0 5px #63b3ed40"></div>Domain core
-        </div>
-        <div class="li">
-            <div class="ld" style="background:#f6ad55"></div>Infrastructure
-        </div>
-        <div class="li">
-            <div class="ld" style="background:#fc8181"></div>Email / Auth
-        </div>
-        <div class="li">
-            <div class="ld" style="background:#68d391"></div>Records / Config
-        </div>
-        <div class="li">
-            <div class="ld" style="background:#b794f4"></div>Security layer
-        </div>
-        <div class="li">
-            <div class="ld" style="background:#4fd1c5"></div>Web assets
-        </div>
-        <div class="li">
-            <div class="ld" style="background:#f687b3"></div>Certificates
+    <div id="scan-bar">
+        <div class="scan-wrap">
+            <span class="scan-ico">&#9655;</span>
+            <input type="text" id="domain-input"
+                   placeholder="enter target domain &mdash; e.g. example.com"
+                   autocomplete="off" spellcheck="false" />
+            <button id="scan-btn">SCAN</button>
         </div>
     </div>
+    <div class="stats">Nodes:&nbsp;<b id="sn">1</b>&nbsp;&nbsp;|&nbsp;&nbsp;Edges:&nbsp;<b id="se">0</b>&nbsp;&nbsp;|&nbsp;&nbsp;Critical:&nbsp;<b class="warn" id="sc">0</b></div>
+</div>
 
-    <div id="tip"></div>
-    <div id="hint">
-        <span style="color:var(--green)">●</span> = has children &nbsp; <span style="color:var(--red)">●</span> = fully
-        expanded<br>
-        Click node to expand · drag · scroll to zoom
-    </div>
+<div id="progress-bar"></div>
+<div id="svg-wrap"><svg id="g"></svg></div>
 
-    <script>
-        // ── NODE DATA ────────────────────────────────────────────────────────────────
-        const N = {
-            domain: {
-                label: "example.com", tag: "ROOT DOMAIN", color: "#63b3ed", r: 40, tier: 0,
-                desc: "The core asset. Every recon path starts here. Ownership controls DNS, email, web presence, and certificate issuance.",
-                risks: [{ s: "c", t: "Domain hijacking via registrar" }, { s: "c", t: "Expired domain re-registration" }, { s: "h", t: "DNS zone transfer (AXFR)" }, { s: "h", t: "Typosquatting / lookalike" }]
-            },
+<div id="panel">
+    <div class="p-tag" id="pt">—</div>
+    <div class="p-name" id="pn">—</div>
+    <div class="p-desc" id="pd">—</div>
+    <hr class="p-div">
+    <div class="p-sec">ATTACK VECTORS</div>
+    <div id="pr"></div>
+</div>
 
-            dns: {
-                label: "DNS", tag: "INFRASTRUCTURE", color: "#68d391", r: 28, tier: 1,
-                desc: "Domain Name System. Misconfigured DNS can expose internal infrastructure or silently redirect all traffic.",
-                risks: [{ s: "c", t: "DNS cache poisoning" }, { s: "h", t: "Dangling DNS → subdomain takeover" }, { s: "h", t: "Open resolver amplification" }, { s: "m", t: "Zone transfer misconfiguration" }]
-            },
+<div id="btns">
+    <button class="btn" id="b-reset" title="Reset view">&#8962;</button>
+    <button class="btn" id="b-all" title="Expand all">&#8853;</button>
+    <button class="btn" id="b-none" title="Collapse all">&#8854;</button>
+</div>
 
-            email: {
-                label: "Email", tag: "COMMUNICATION", color: "#fc8181", r: 28, tier: 1,
-                desc: "Email is the #1 phishing and spoofing vector. Missing SPF/DKIM/DMARC means anyone can impersonate your domain.",
-                risks: [{ s: "c", t: "Email spoofing without DMARC" }, { s: "h", t: "Business email compromise (BEC)" }, { s: "h", t: "Phishing via look-alike domain" }, { s: "m", t: "Open relay misconfiguration" }]
-            },
+<div id="legend">
+    <div class="leg-head">CATEGORIES</div>
+    <div class="li"><div class="ld" style="background:#63b3ed;box-shadow:0 0 5px #63b3ed40"></div>Domain core</div>
+    <div class="li"><div class="ld" style="background:#f6ad55"></div>Infrastructure</div>
+    <div class="li"><div class="ld" style="background:#fc8181"></div>Email / Auth</div>
+    <div class="li"><div class="ld" style="background:#68d391"></div>Records / Config</div>
+    <div class="li"><div class="ld" style="background:#b794f4"></div>Security layer</div>
+    <div class="li"><div class="ld" style="background:#4fd1c5"></div>Web assets</div>
+    <div class="li"><div class="ld" style="background:#f687b3"></div>Certificates</div>
+</div>
 
-            waf: {
-                label: "WAF / CDN", tag: "SECURITY LAYER", color: "#b794f4", r: 28, tier: 1,
-                desc: "Web Application Firewall and CDN sit in front of your origin server. An exposed origin IP bypasses all protection.",
-                risks: [{ s: "h", t: "Origin IP exposure bypasses WAF" }, { s: "h", t: "Cache poisoning via headers" }, { s: "m", t: "WAF rule bypass (encoding)" }, { s: "m", t: "Misconfigured security headers" }]
-            },
+<div id="tip"></div>
+<div id="hint">
+    <span style="color:var(--green)">&#9679;</span> = has children &nbsp;
+    <span style="color:var(--red)">&#9679;</span> = fully expanded<br>
+    Click node to expand &middot; drag &middot; scroll to zoom
+</div>
 
-            subdomains: {
-                label: "Subdomains", tag: "WEB ASSETS", color: "#4fd1c5", r: 28, tier: 1,
-                desc: "Every subdomain is extra attack surface. Forgotten staging, dev, and old subdomains are prime targets for takeover.",
-                risks: [{ s: "c", t: "Subdomain takeover (dangling CNAME)" }, { s: "h", t: "Dev/staging with prod data" }, { s: "h", t: "Unauthenticated admin panels" }, { s: "m", t: "Exposed .git / .env files" }]
-            },
+<script>
+// ── SCANNER CONSTANTS ─────────────────────────────────────────────────────────
+const DOH = 'https://cloudflare-dns.com/dns-query';
 
-            tls: {
-                label: "TLS / SSL", tag: "CERTIFICATES", color: "#f687b3", r: 28, tier: 1,
-                desc: "Certificates validate identity. Certificate Transparency logs are public — attackers enumerate all subdomains via crt.sh.",
-                risks: [{ s: "h", t: "CT log subdomain enumeration" }, { s: "h", t: "Expired or self-signed cert" }, { s: "m", t: "Weak cipher suites (TLS 1.0)" }, { s: "m", t: "Missing HSTS header" }]
-            },
+const DKIM_SELECTORS = [
+    'default','google','k1','k2','dkim','mail','selector1','selector2',
+    'smtp','mandrill','mailchimp','sendgrid','mimecast','pm','em','s1','s2'
+];
 
-            hosting: {
-                label: "Hosting", tag: "INFRASTRUCTURE", color: "#f6ad55", r: 28, tier: 1,
-                desc: "Cloud or bare-metal hosting. Exposed response headers reveal the tech stack; misconfigured cloud storage causes breaches.",
-                risks: [{ s: "h", t: "Public S3 / GCS bucket" }, { s: "h", t: "Exposed admin interfaces" }, { s: "m", t: "Server banner / version leak" }, { s: "m", t: "Default credentials on services" }]
-            },
+const COMMON_SUBS = [
+    'www','api','dev','staging','admin','mail','smtp','ftp','app','dashboard',
+    'portal','vpn','remote','test','beta','old','legacy','static','cdn','media',
+    'assets','blog','shop','store','auth','login','secure','git','gitlab',
+    'jenkins','jira','wiki','docs','support','status','monitor','webmail',
+    'autodiscover','s3','files','images','upload','download','backup','db',
+    'database','mysql','redis','elastic','kibana','grafana','prometheus'
+];
 
-            // DNS children
-            "a-rec": {
-                label: "A / AAAA", tag: "DNS RECORD", color: "#68d391", r: 19, tier: 2,
-                desc: "Maps domain → IPv4/IPv6 address. Historical A records expose origin IPs hidden behind a CDN.",
-                risks: [{ s: "h", t: "Origin IP reveals real server" }, { s: "m", t: "Historical IPs via DNS history" }]
-            },
-            "mx-rec": {
-                label: "MX", tag: "DNS RECORD", color: "#68d391", r: 19, tier: 2,
-                desc: "Mail Exchange records reveal your mail provider and enable targeted mail-server attacks.",
-                risks: [{ s: "h", t: "Mail server fingerprinting" }, { s: "m", t: "Open relay if misconfigured" }]
-            },
-            "ns-rec": {
-                label: "NS", tag: "DNS RECORD", color: "#68d391", r: 19, tier: 2,
-                desc: "Name Server records. A compromised NS provider is a total domain takeover — the highest-impact single point of failure.",
-                risks: [{ s: "c", t: "NS provider account takeover" }, { s: "h", t: "Zone transfer via AXFR" }]
-            },
-            "txt-rec": {
-                label: "TXT", tag: "DNS RECORD", color: "#68d391", r: 19, tier: 2,
-                desc: "TXT records hold SPF, DKIM keys, and SaaS verification tokens — they expose your entire vendor list.",
-                risks: [{ s: "m", t: "SaaS vendor enumeration" }, { s: "m", t: "Exposed verification secrets" }]
-            },
-            "cname-rec": {
-                label: "CNAME", tag: "DNS RECORD", color: "#68d391", r: 19, tier: 2,
-                desc: "Alias records. Orphaned CNAMEs pointing to deleted cloud resources allow full subdomain takeover.",
-                risks: [{ s: "c", t: "Dangling CNAME → takeover" }, { s: "m", t: "Exposes third-party providers" }]
-            },
+// ── DNS OVER HTTPS HELPERS ────────────────────────────────────────────────────
+async function doh(name, type) {
+    try {
+        const r = await fetch(
+            `${DOH}?name=${encodeURIComponent(name)}&type=${type}`,
+            { headers: { Accept: 'application/dns-json' } }
+        );
+        return r.ok ? r.json() : null;
+    } catch { return null; }
+}
 
-            // Email children
-            spf: {
-                label: "SPF", tag: "EMAIL SECURITY", color: "#fc8181", r: 19, tier: 2,
-                desc: "Sender Policy Framework authorises which servers can send mail. '+all' means everyone is authorised.",
-                risks: [{ s: "c", t: "Missing SPF → spoofing open" }, { s: "h", t: "Overly permissive '+all' record" }, { s: "m", t: ">10 DNS lookups = permerror" }]
-            },
-            dkim: {
-                label: "DKIM", tag: "EMAIL SECURITY", color: "#fc8181", r: 19, tier: 2,
-                desc: "DomainKeys Identified Mail cryptographically signs emails. Weak 512-bit keys can be factored within hours.",
-                risks: [{ s: "h", t: "Exposed DKIM private key" }, { s: "h", t: "Weak 512-bit key (crackable)" }, { s: "m", t: "No key rotation policy" }]
-            },
-            dmarc: {
-                label: "DMARC", tag: "EMAIL SECURITY", color: "#fc8181", r: 19, tier: 2,
-                desc: "DMARC enforces SPF+DKIM. p=none means monitoring only — spoofed emails still reach inboxes.",
-                risks: [{ s: "c", t: "p=none → no enforcement" }, { s: "h", t: "Missing DMARC entirely" }, { s: "m", t: "RUA reports sent to attacker" }]
-            },
-            smtp: {
-                label: "SMTP", tag: "EMAIL PROTOCOL", color: "#fc8181", r: 19, tier: 2,
-                desc: "Mail Transfer Protocol. Misconfigured SMTP servers become open relays for spam and phishing campaigns.",
-                risks: [{ s: "h", t: "Open relay for spam/phishing" }, { s: "m", t: "STARTTLS not enforced" }, { s: "m", t: "User enumeration via VRFY" }]
-            },
+function parseAnswers(res, type) {
+    if (!res?.Answer) return [];
+    const rows = type ? res.Answer.filter(a => a.type === type) : res.Answer;
+    return rows.map(a => (a.data || '').replace(/^"|"$/g, '').trim()).filter(Boolean);
+}
 
-            // WAF children
-            origin: {
-                label: "Origin IP", tag: "INFRASTRUCTURE", color: "#b794f4", r: 19, tier: 2,
-                desc: "The real server behind the WAF. Once discovered via DNS history or Shodan, the WAF is completely bypassed.",
-                risks: [{ s: "c", t: "Direct IP access bypasses WAF" }, { s: "h", t: "Exposed in X-Forwarded headers" }, { s: "h", t: "Indexed by Shodan" }]
-            },
-            proxy: {
-                label: "Reverse Proxy", tag: "INFRASTRUCTURE", color: "#b794f4", r: 19, tier: 2,
-                desc: "Nginx/Apache/HAProxy. Misconfigurations allow SSRF, header injection, and path traversal to internal services.",
-                risks: [{ s: "h", t: "SSRF via proxy misconfiguration" }, { s: "h", t: "Path traversal to internal APIs" }, { s: "m", t: "HTTP request smuggling" }]
-            },
-            headers: {
-                label: "HTTP Headers", tag: "WEB CONFIG", color: "#b794f4", r: 19, tier: 2,
-                desc: "Security headers (CSP, HSTS, X-Frame-Options). Missing headers enable XSS, clickjacking, and MIME sniffing attacks.",
-                risks: [{ s: "h", t: "Missing CSP → XSS escalation" }, { s: "h", t: "No X-Frame-Options → clickjack" }, { s: "m", t: "Server version in headers" }]
-            },
+async function fetchSafe(url, ms = 7000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try {
+        const r = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(t);
+        return r;
+    } catch { clearTimeout(t); return null; }
+}
 
-            // Subdomain children
-            api: {
-                label: "api.*", tag: "SUBDOMAIN", color: "#4fd1c5", r: 19, tier: 2,
-                desc: "API subdomains often lack WAF protection. Exposed Swagger docs enumerate every endpoint for attackers.",
-                risks: [{ s: "c", t: "Unauthenticated API endpoints" }, { s: "h", t: "Exposed Swagger/OpenAPI docs" }, { s: "h", t: "CORS misconfiguration" }]
-            },
-            staging: {
-                label: "dev / staging.*", tag: "SUBDOMAIN", color: "#4fd1c5", r: 19, tier: 2,
-                desc: "Dev environments frequently contain production data, debug endpoints, and weaker authentication controls.",
-                risks: [{ s: "h", t: "Prod data in non-prod env" }, { s: "h", t: "Debug mode enabled" }, { s: "m", t: "No auth required" }]
-            },
-            admin: {
-                label: "admin.*", tag: "SUBDOMAIN", color: "#4fd1c5", r: 19, tier: 2,
-                desc: "Admin panels are often forgotten, indexed by search engines, and protected only by default credentials.",
-                risks: [{ s: "c", t: "Indexed by Shodan / Google" }, { s: "h", t: "Default admin credentials" }, { s: "h", t: "No MFA on admin access" }]
-            },
+// ── DETECTION HELPERS ─────────────────────────────────────────────────────────
+function detectCDN(aRecs, nsRecs, cnames) {
+    const ns = (nsRecs || []).join(' ').toLowerCase();
+    const cn = (cnames || []).join(' ').toLowerCase();
 
-            // TLS children
-            "ct-logs": {
-                label: "CT Logs", tag: "CERTIFICATE", color: "#f687b3", r: 19, tier: 2,
-                desc: "Certificate Transparency logs are fully public. crt.sh shows every cert ever issued — exposing every subdomain.",
-                risks: [{ s: "h", t: "Full subdomain enumeration" }, { s: "m", t: "Internal hostnames leaked" }]
-            },
-            "cert-expire": {
-                label: "Cert Validity", tag: "CERTIFICATE", color: "#f687b3", r: 19, tier: 2,
-                desc: "Expired certs trigger browser warnings and break HSTS pinning — potentially locking all users out.",
-                risks: [{ s: "h", t: "Expired cert → user lockout" }, { s: "m", t: "No auto-renewal monitoring" }]
-            },
+    if (ns.includes('cloudflare') || cn.includes('cloudflare')) return 'Cloudflare';
+    if (cn.includes('cloudfront.net')) return 'AWS CloudFront';
+    if (ns.includes('awsdns')) return 'AWS Route 53';
+    if (cn.includes('azureedge') || cn.includes('azurefd')) return 'Azure CDN';
+    if (cn.includes('fastly.net') || cn.includes('fastlylb')) return 'Fastly';
+    if (cn.includes('akamaiedge') || cn.includes('akamaized')) return 'Akamai';
+    if (cn.includes('incapdns') || cn.includes('impervadns')) return 'Imperva';
+    if (cn.includes('sucuri.net')) return 'Sucuri';
 
-            // Hosting children
-            "cloud-storage": {
-                label: "Cloud Storage", tag: "CLOUD", color: "#f6ad55", r: 19, tier: 2,
-                desc: "S3, GCS, Azure Blob. Publicly accessible buckets are one of the most common causes of massive data breaches.",
-                risks: [{ s: "c", t: "Public S3 / GCS bucket" }, { s: "h", t: "Bucket enumeration brute force" }, { s: "m", t: "Overly permissive bucket policy" }]
-            },
-            ports: {
-                label: "Open Ports", tag: "NETWORK", color: "#f6ad55", r: 19, tier: 2,
-                desc: "Exposed services on non-standard ports. Scanning reveals forgotten services and unpatched daemons.",
-                risks: [{ s: "h", t: "SSH/RDP exposed to internet" }, { s: "h", t: "Database port open (3306)" }, { s: "m", t: "Unpatched service versions" }]
-            },
-        };
+    for (const ip of (aRecs || [])) {
+        const p = ip.split('.').map(Number);
+        if (!p.every(n => !isNaN(n) && n >= 0 && n <= 255)) continue;
+        // Cloudflare IP ranges
+        if (p[0] === 104 && p[1] >= 16 && p[1] <= 31) return 'Cloudflare';
+        if (p[0] === 172 && p[1] >= 64 && p[1] <= 71) return 'Cloudflare';
+        if (p[0] === 162 && (p[1] === 158 || p[1] === 159)) return 'Cloudflare';
+        if (p[0] === 198 && p[1] === 41 && p[2] >= 128) return 'Cloudflare';
+        if (p[0] === 131 && p[1] === 0 && p[2] >= 72 && p[2] <= 75) return 'Cloudflare';
+        // Fastly
+        if (p[0] === 151 && p[1] === 101) return 'Fastly';
+        // AWS CloudFront
+        if (p[0] === 52 && p[1] >= 84 && p[1] <= 85) return 'AWS CloudFront';
+        if (p[0] === 13 && (p[1] === 32 || p[1] === 33 || p[1] === 224 || p[1] === 225)) return 'AWS CloudFront';
+        // Akamai
+        if (p[0] === 23 && p[1] >= 0 && p[1] <= 15) return 'Akamai';
+    }
+    return null;
+}
 
-        // ── EDGE DEFINITIONS (parent → child only) ───────────────────────────────────
-        const EDGES = [
-            { s: "domain", t: "dns" }, { s: "domain", t: "email" }, { s: "domain", t: "waf" },
-            { s: "domain", t: "subdomains" }, { s: "domain", t: "tls" }, { s: "domain", t: "hosting" },
-            { s: "dns", t: "a-rec" }, { s: "dns", t: "mx-rec" }, { s: "dns", t: "ns-rec" }, { s: "dns", t: "txt-rec" }, { s: "dns", t: "cname-rec" },
-            { s: "email", t: "spf" }, { s: "email", t: "dkim" }, { s: "email", t: "dmarc" }, { s: "email", t: "smtp" },
-            { s: "waf", t: "origin" }, { s: "waf", t: "proxy" }, { s: "waf", t: "headers" },
-            { s: "subdomains", t: "api" }, { s: "subdomains", t: "staging" }, { s: "subdomains", t: "admin" },
-            { s: "tls", t: "ct-logs" }, { s: "tls", t: "cert-expire" },
-            { s: "hosting", t: "cloud-storage" }, { s: "hosting", t: "ports" },
-        ];
+function detectMailProvider(mxRecs) {
+    const mx = (mxRecs || []).join(' ').toLowerCase();
+    if (mx.includes('aspmx.l.google') || mx.includes('googlemail')) return 'Google Workspace';
+    if (mx.includes('protection.outlook') || mx.includes('mail.protection')) return 'Microsoft 365';
+    if (mx.includes('protonmail')) return 'ProtonMail';
+    if (mx.includes('mimecast')) return 'Mimecast';
+    if (mx.includes('mandrillapp') || mx.includes('mailchimp')) return 'Mailchimp';
+    if (mx.includes('sendgrid.net')) return 'SendGrid';
+    if (mx.includes('fastmail')) return 'FastMail';
+    if (mx.includes('zoho')) return 'Zoho Mail';
+    if (mx.includes('amazonses') || mx.includes('amazonaws')) return 'Amazon SES';
+    if (mx.includes('mailgun')) return 'Mailgun';
+    return null;
+}
 
-        // children lookup
-        const CH = {};
-        EDGES.forEach(e => { if (!CH[e.s]) CH[e.s] = []; CH[e.s].push(e.t); });
+function detectNsProvider(nsRecs) {
+    const ns = (nsRecs || []).join(' ').toLowerCase();
+    if (ns.includes('cloudflare')) return 'Cloudflare';
+    if (ns.includes('awsdns')) return 'AWS Route 53';
+    if (ns.includes('azure-dns')) return 'Azure DNS';
+    if (ns.includes('googledomains') || ns.includes('google.com')) return 'Google Domains';
+    if (ns.includes('domaincontrol')) return 'GoDaddy';
+    if (ns.includes('registrar-servers')) return 'Namecheap';
+    if (ns.includes('dnsimple')) return 'DNSimple';
+    if (ns.includes('nsone') || ns.includes('ns1.com')) return 'NS1';
+    if (ns.includes('ultradns')) return 'UltraDNS';
+    return null;
+}
 
-        // ── STATE ────────────────────────────────────────────────────────────────────
-        let visible = new Set(["domain"]);
-        const pos = {};
+function isTakeoverCandidate(cname) {
+    const cn = (cname || '').toLowerCase().replace(/\.$/, '');
+    return ['github.io','amazonaws.com','s3.amazonaws','azurewebsites.net',
+        'cloudapp.net','azurefd.net','blob.core.windows','herokuapp.com',
+        'netlify.app','vercel.app','pages.dev','zendesk.com',
+        'readme.io','ghost.io','shopify.com','myshopify','squarespace.com',
+        'tumblr.com','fastly.net','helpscoutdocs','statuspage.io',
+        'surge.sh','firebaseapp.com','web.app'
+    ].some(s => cn.includes(s));
+}
 
-        // ── D3 ───────────────────────────────────────────────────────────────────────
-        const svg = d3.select("#g");
-        let W = window.innerWidth, H = window.innerHeight - 48;
-        const scene = svg.append("g");
-        let sim, linkSel, nodeSel;
+// ── NODE DATA ─────────────────────────────────────────────────────────────────
+const N = {
+    domain: {
+        label: "example.com", tag: "ROOT DOMAIN", color: "#63b3ed", r: 40, tier: 0,
+        desc: "The core asset. Every recon path starts here. Enter a domain above and click SCAN to populate this graph with real DNS and security data.",
+        risks: [{ s: "c", t: "Domain hijacking via registrar" }, { s: "c", t: "Expired domain re-registration" }, { s: "h", t: "DNS zone transfer (AXFR)" }, { s: "h", t: "Typosquatting / lookalike" }]
+    },
+    dns: {
+        label: "DNS", tag: "INFRASTRUCTURE", color: "#68d391", r: 28, tier: 1,
+        desc: "Domain Name System. Misconfigured DNS can expose internal infrastructure or silently redirect all traffic.",
+        risks: [{ s: "c", t: "DNS cache poisoning" }, { s: "h", t: "Dangling DNS → subdomain takeover" }, { s: "h", t: "Open resolver amplification" }, { s: "m", t: "Zone transfer misconfiguration" }]
+    },
+    email: {
+        label: "Email", tag: "COMMUNICATION", color: "#fc8181", r: 28, tier: 1,
+        desc: "Email is the #1 phishing and spoofing vector. Missing SPF/DKIM/DMARC means anyone can impersonate your domain.",
+        risks: [{ s: "c", t: "Email spoofing without DMARC" }, { s: "h", t: "Business email compromise (BEC)" }, { s: "h", t: "Phishing via look-alike domain" }, { s: "m", t: "Open relay misconfiguration" }]
+    },
+    waf: {
+        label: "WAF / CDN", tag: "SECURITY LAYER", color: "#b794f4", r: 28, tier: 1,
+        desc: "Web Application Firewall and CDN sit in front of your origin server. An exposed origin IP bypasses all protection.",
+        risks: [{ s: "h", t: "Origin IP exposure bypasses WAF" }, { s: "h", t: "Cache poisoning via headers" }, { s: "m", t: "WAF rule bypass (encoding)" }, { s: "m", t: "Misconfigured security headers" }]
+    },
+    subdomains: {
+        label: "Subdomains", tag: "WEB ASSETS", color: "#4fd1c5", r: 28, tier: 1,
+        desc: "Every subdomain is extra attack surface. Forgotten staging, dev, and old subdomains are prime targets for takeover.",
+        risks: [{ s: "c", t: "Subdomain takeover (dangling CNAME)" }, { s: "h", t: "Dev/staging with prod data" }, { s: "h", t: "Unauthenticated admin panels" }, { s: "m", t: "Exposed .git / .env files" }]
+    },
+    tls: {
+        label: "TLS / SSL", tag: "CERTIFICATES", color: "#f687b3", r: 28, tier: 1,
+        desc: "Certificates validate identity. Certificate Transparency logs are public — attackers enumerate all subdomains via crt.sh.",
+        risks: [{ s: "h", t: "CT log subdomain enumeration" }, { s: "h", t: "Expired or self-signed cert" }, { s: "m", t: "Weak cipher suites (TLS 1.0)" }, { s: "m", t: "Missing HSTS header" }]
+    },
+    hosting: {
+        label: "Hosting", tag: "INFRASTRUCTURE", color: "#f6ad55", r: 28, tier: 1,
+        desc: "Cloud or bare-metal hosting. Exposed response headers reveal the tech stack; misconfigured cloud storage causes breaches.",
+        risks: [{ s: "h", t: "Public S3 / GCS bucket" }, { s: "h", t: "Exposed admin interfaces" }, { s: "m", t: "Server banner / version leak" }, { s: "m", t: "Default credentials on services" }]
+    },
+    "a-rec": {
+        label: "A / AAAA", tag: "DNS RECORD", color: "#68d391", r: 19, tier: 2,
+        desc: "Maps domain to IPv4/IPv6 address. Historical A records expose origin IPs hidden behind a CDN.",
+        risks: [{ s: "h", t: "Origin IP reveals real server" }, { s: "m", t: "Historical IPs via DNS history" }]
+    },
+    "mx-rec": {
+        label: "MX", tag: "DNS RECORD", color: "#68d391", r: 19, tier: 2,
+        desc: "Mail Exchange records reveal your mail provider and enable targeted mail-server attacks.",
+        risks: [{ s: "h", t: "Mail server fingerprinting" }, { s: "m", t: "Open relay if misconfigured" }]
+    },
+    "ns-rec": {
+        label: "NS", tag: "DNS RECORD", color: "#68d391", r: 19, tier: 2,
+        desc: "Name Server records. A compromised NS provider is a total domain takeover — the highest-impact single point of failure.",
+        risks: [{ s: "c", t: "NS provider account takeover" }, { s: "h", t: "Zone transfer via AXFR" }]
+    },
+    "txt-rec": {
+        label: "TXT", tag: "DNS RECORD", color: "#68d391", r: 19, tier: 2,
+        desc: "TXT records hold SPF, DKIM keys, and SaaS verification tokens — they expose your entire vendor list.",
+        risks: [{ s: "m", t: "SaaS vendor enumeration" }, { s: "m", t: "Exposed verification secrets" }]
+    },
+    "cname-rec": {
+        label: "CNAME", tag: "DNS RECORD", color: "#68d391", r: 19, tier: 2,
+        desc: "Alias records. Orphaned CNAMEs pointing to deleted cloud resources allow full subdomain takeover.",
+        risks: [{ s: "c", t: "Dangling CNAME → takeover" }, { s: "m", t: "Exposes third-party providers" }]
+    },
+    spf: {
+        label: "SPF", tag: "EMAIL SECURITY", color: "#fc8181", r: 19, tier: 2,
+        desc: "Sender Policy Framework authorises which servers can send mail. '+all' means everyone is authorised.",
+        risks: [{ s: "c", t: "Missing SPF → spoofing open" }, { s: "h", t: "Overly permissive '+all' record" }, { s: "m", t: ">10 DNS lookups = permerror" }]
+    },
+    dkim: {
+        label: "DKIM", tag: "EMAIL SECURITY", color: "#fc8181", r: 19, tier: 2,
+        desc: "DomainKeys Identified Mail cryptographically signs emails. Weak 512-bit keys can be factored within hours.",
+        risks: [{ s: "h", t: "Exposed DKIM private key" }, { s: "h", t: "Weak 512-bit key (crackable)" }, { s: "m", t: "No key rotation policy" }]
+    },
+    dmarc: {
+        label: "DMARC", tag: "EMAIL SECURITY", color: "#fc8181", r: 19, tier: 2,
+        desc: "DMARC enforces SPF+DKIM. p=none means monitoring only — spoofed emails still reach inboxes.",
+        risks: [{ s: "c", t: "p=none → no enforcement" }, { s: "h", t: "Missing DMARC entirely" }, { s: "m", t: "RUA reports sent to attacker" }]
+    },
+    smtp: {
+        label: "SMTP", tag: "EMAIL PROTOCOL", color: "#fc8181", r: 19, tier: 2,
+        desc: "Mail Transfer Protocol. Misconfigured SMTP servers become open relays for spam and phishing campaigns.",
+        risks: [{ s: "h", t: "Open relay for spam/phishing" }, { s: "m", t: "STARTTLS not enforced" }, { s: "m", t: "User enumeration via VRFY" }]
+    },
+    origin: {
+        label: "Origin IP", tag: "INFRASTRUCTURE", color: "#b794f4", r: 19, tier: 2,
+        desc: "The real server behind the WAF. Once discovered via DNS history or Shodan, the WAF is completely bypassed.",
+        risks: [{ s: "c", t: "Direct IP access bypasses WAF" }, { s: "h", t: "Exposed in X-Forwarded headers" }, { s: "h", t: "Indexed by Shodan" }]
+    },
+    proxy: {
+        label: "Reverse Proxy", tag: "INFRASTRUCTURE", color: "#b794f4", r: 19, tier: 2,
+        desc: "Nginx/Apache/HAProxy. Misconfigurations allow SSRF, header injection, and path traversal to internal services.",
+        risks: [{ s: "h", t: "SSRF via proxy misconfiguration" }, { s: "h", t: "Path traversal to internal APIs" }, { s: "m", t: "HTTP request smuggling" }]
+    },
+    headers: {
+        label: "HTTP Headers", tag: "WEB CONFIG", color: "#b794f4", r: 19, tier: 2,
+        desc: "Security headers (CSP, HSTS, X-Frame-Options). Missing headers enable XSS, clickjacking, and MIME sniffing attacks.",
+        risks: [{ s: "h", t: "Missing CSP → XSS escalation" }, { s: "h", t: "No X-Frame-Options → clickjack" }, { s: "m", t: "Server version in headers" }]
+    },
+    api: {
+        label: "api.*", tag: "SUBDOMAIN", color: "#4fd1c5", r: 19, tier: 2,
+        desc: "API subdomains often lack WAF protection. Exposed Swagger docs enumerate every endpoint for attackers.",
+        risks: [{ s: "c", t: "Unauthenticated API endpoints" }, { s: "h", t: "Exposed Swagger/OpenAPI docs" }, { s: "h", t: "CORS misconfiguration" }]
+    },
+    staging: {
+        label: "dev / staging.*", tag: "SUBDOMAIN", color: "#4fd1c5", r: 19, tier: 2,
+        desc: "Dev environments frequently contain production data, debug endpoints, and weaker authentication controls.",
+        risks: [{ s: "h", t: "Prod data in non-prod env" }, { s: "h", t: "Debug mode enabled" }, { s: "m", t: "No auth required" }]
+    },
+    admin: {
+        label: "admin.*", tag: "SUBDOMAIN", color: "#4fd1c5", r: 19, tier: 2,
+        desc: "Admin panels are often forgotten, indexed by search engines, and protected only by default credentials.",
+        risks: [{ s: "c", t: "Indexed by Shodan / Google" }, { s: "h", t: "Default admin credentials" }, { s: "h", t: "No MFA on admin access" }]
+    },
+    "ct-logs": {
+        label: "CT Logs", tag: "CERTIFICATE", color: "#f687b3", r: 19, tier: 2,
+        desc: "Certificate Transparency logs are fully public. crt.sh shows every cert ever issued — exposing every subdomain.",
+        risks: [{ s: "h", t: "Full subdomain enumeration" }, { s: "m", t: "Internal hostnames leaked" }]
+    },
+    "cert-expire": {
+        label: "Cert Validity", tag: "CERTIFICATE", color: "#f687b3", r: 19, tier: 2,
+        desc: "Expired certs trigger browser warnings and break HSTS pinning — potentially locking all users out.",
+        risks: [{ s: "h", t: "Expired cert → user lockout" }, { s: "m", t: "No auto-renewal monitoring" }]
+    },
+    "cloud-storage": {
+        label: "Cloud Storage", tag: "CLOUD", color: "#f6ad55", r: 19, tier: 2,
+        desc: "S3, GCS, Azure Blob. Publicly accessible buckets are one of the most common causes of massive data breaches.",
+        risks: [{ s: "c", t: "Public S3 / GCS bucket" }, { s: "h", t: "Bucket enumeration brute force" }, { s: "m", t: "Overly permissive bucket policy" }]
+    },
+    ports: {
+        label: "Open Ports", tag: "NETWORK", color: "#f6ad55", r: 19, tier: 2,
+        desc: "Exposed services on non-standard ports. Scanning reveals forgotten services and unpatched daemons.",
+        risks: [{ s: "h", t: "SSH/RDP exposed to internet" }, { s: "h", t: "Database port open (3306)" }, { s: "m", t: "Unpatched service versions" }]
+    },
+};
 
-        const zoom = d3.zoom().scaleExtent([.2, 5])
-            .on("zoom", e => scene.attr("transform", e.transform));
-        svg.call(zoom);
+// ── EDGES ─────────────────────────────────────────────────────────────────────
+const EDGES = [
+    { s: "domain", t: "dns" }, { s: "domain", t: "email" }, { s: "domain", t: "waf" },
+    { s: "domain", t: "subdomains" }, { s: "domain", t: "tls" }, { s: "domain", t: "hosting" },
+    { s: "dns", t: "a-rec" }, { s: "dns", t: "mx-rec" }, { s: "dns", t: "ns-rec" }, { s: "dns", t: "txt-rec" }, { s: "dns", t: "cname-rec" },
+    { s: "email", t: "spf" }, { s: "email", t: "dkim" }, { s: "email", t: "dmarc" }, { s: "email", t: "smtp" },
+    { s: "waf", t: "origin" }, { s: "waf", t: "proxy" }, { s: "waf", t: "headers" },
+    { s: "subdomains", t: "api" }, { s: "subdomains", t: "staging" }, { s: "subdomains", t: "admin" },
+    { s: "tls", t: "ct-logs" }, { s: "tls", t: "cert-expire" },
+    { s: "hosting", t: "cloud-storage" }, { s: "hosting", t: "ports" },
+];
 
-        // ── RENDER ───────────────────────────────────────────────────────────────────
-        function render(newIds) {
-            const nodes = [...visible].map(id => {
-                const d = { id, ...N[id] };
-                if (pos[id]) { d.x = pos[id].x; d.y = pos[id].y; }
-                return d;
-            });
-            const links = EDGES
-                .filter(e => visible.has(e.s) && visible.has(e.t))
-                .map(e => ({ source: e.s, target: e.t }));
+const CH = {};
+EDGES.forEach(e => { if (!CH[e.s]) CH[e.s] = []; CH[e.s].push(e.t); });
 
-            // stats
-            document.getElementById("sn").textContent = nodes.length;
-            document.getElementById("se").textContent = links.length;
-            document.getElementById("sc").textContent =
-                nodes.filter(n => N[n.id].risks.some(r => r.s === "c")).length;
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let visible = new Set(["domain"]);
+const pos = {};
 
-            scene.selectAll(".edge").remove();
-            scene.selectAll(".nd").remove();
+// ── D3 SETUP ──────────────────────────────────────────────────────────────────
+const svg = d3.select("#g");
+let W = window.innerWidth, H = window.innerHeight - 48;
+const scene = svg.append("g");
+let sim, linkSel, nodeSel;
 
-            // edges
-            linkSel = scene.selectAll(".edge")
-                .data(links, d => d.source + "-" + d.target)
-                .enter().append("line").attr("class", "edge");
+const zoom = d3.zoom().scaleExtent([.2, 5])
+    .on("zoom", e => scene.attr("transform", e.transform));
+svg.call(zoom);
 
-            // nodes
-            nodeSel = scene.selectAll(".nd")
-                .data(nodes, d => d.id)
-                .enter().append("g").attr("class", "nd")
-                .call(d3.drag()
-                    .on("start", (e, d) => { if (!e.active) sim.alphaTarget(.3).restart(); d.fx = d.x; d.fy = d.y; })
-                    .on("drag", (e, d) => { d.fx = e.x; d.fy = e.y; })
-                    .on("end", (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }))
-                .on("click", (e, d) => { e.stopPropagation(); onClickNode(d); })
-                .on("mouseover", (e, d) => showTip(e, d))
-                .on("mousemove", moveTip)
-                .on("mouseout", hideTip);
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render(newIds) {
+    const nodes = [...visible].map(id => {
+        const d = { id, ...N[id] };
+        if (pos[id]) { d.x = pos[id].x; d.y = pos[id].y; }
+        return d;
+    });
+    const links = EDGES
+        .filter(e => visible.has(e.s) && visible.has(e.t))
+        .map(e => ({ source: e.s, target: e.t }));
 
-            // dashed orbit ring — shown only when node has unexpanded children
-            nodeSel.filter(d => CH[d.id] && hasHidden(d.id))
-                .append("circle")
-                .attr("r", d => d.r + 10)
-                .attr("fill", "none")
-                .attr("stroke", d => d.color)
-                .attr("stroke-width", .7)
-                .attr("stroke-dasharray", "3 4")
-                .attr("stroke-opacity", .35);
+    document.getElementById("sn").textContent = nodes.length;
+    document.getElementById("se").textContent = links.length;
+    document.getElementById("sc").textContent =
+        nodes.filter(n => N[n.id].risks.some(r => r.s === "c")).length;
 
-            // glow halo
-            nodeSel.append("circle")
-                .attr("r", d => d.r + 5)
-                .attr("fill", d => hexA(d.color, .07));
+    scene.selectAll(".edge").remove();
+    scene.selectAll(".nd").remove();
 
-            // main body
-            nodeSel.append("circle").attr("class", "bg")
-                .attr("r", d => d.r)
-                .attr("fill", d => hexA(d.color, d.tier === 0 ? .15 : .06))
-                .attr("stroke", d => d.color)
-                .attr("stroke-width", d => d.tier === 0 ? 2.5 : 1.5)
-                .attr("stroke-opacity", .85);
+    linkSel = scene.selectAll(".edge")
+        .data(links, d => d.source + "-" + d.target)
+        .enter().append("line").attr("class", "edge");
 
-            // indicator dot (top-right corner)
-            nodeSel.filter(d => CH[d.id])
-                .append("circle")
-                .attr("cx", d => d.r * .68).attr("cy", d => -d.r * .68)
-                .attr("r", 5)
-                .attr("fill", d => hasHidden(d.id) ? "#68d391" : "#fc8181")
-                .attr("stroke", "#080c14").attr("stroke-width", 1.5);
+    nodeSel = scene.selectAll(".nd")
+        .data(nodes, d => d.id)
+        .enter().append("g").attr("class", "nd")
+        .call(d3.drag()
+            .on("start", (e, d) => { if (!e.active) sim.alphaTarget(.3).restart(); d.fx = d.x; d.fy = d.y; })
+            .on("drag", (e, d) => { d.fx = e.x; d.fy = e.y; })
+            .on("end", (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }))
+        .on("click", (e, d) => { e.stopPropagation(); onClickNode(d); })
+        .on("mouseover", (e, d) => showTip(e, d))
+        .on("mousemove", moveTip)
+        .on("mouseout", hideTip);
 
-            // label
-            nodeSel.append("text")
-                .text(d => d.label)
-                .attr("text-anchor", "middle").attr("dominant-baseline", "central")
-                .attr("font-family", "'SF Mono','Fira Code',monospace")
-                .attr("font-size", d => d.tier === 0 ? 13 : d.tier === 1 ? 11 : 9.5)
-                .attr("font-weight", d => d.tier <= 1 ? 700 : 600)
-                .attr("fill", d => d.color)
-                .attr("pointer-events", "none");
+    nodeSel.filter(d => CH[d.id] && hasHidden(d.id))
+        .append("circle")
+        .attr("r", d => d.r + 10).attr("fill", "none")
+        .attr("stroke", d => d.color).attr("stroke-width", .7)
+        .attr("stroke-dasharray", "3 4").attr("stroke-opacity", .35);
 
-            // fade-in new nodes
-            if (newIds && newIds.length) {
-                nodeSel.filter(d => newIds.includes(d.id))
-                    .attr("opacity", 0).transition().duration(320).attr("opacity", 1);
-                linkSel.attr("opacity", 0).transition().duration(380).attr("opacity", 1);
-            }
+    nodeSel.append("circle")
+        .attr("r", d => d.r + 5)
+        .attr("fill", d => hexA(d.color, .07));
 
-            // simulation
-            if (sim) sim.stop();
-            sim = d3.forceSimulation(nodes)
-                .force("link", d3.forceLink(links).id(d => d.id)
-                    .distance(d => {
-                        const st = N[d.source.id || d.source]?.tier;
-                        const tt = N[d.target.id || d.target]?.tier;
-                        if (st === 0 || tt === 0) return 175;
-                        if (st === 1 || tt === 1) return 120;
-                        return 90;
-                    }).strength(1.3))
-                .force("charge", d3.forceManyBody().strength(d =>
-                    d.tier === 0 ? -1000 : d.tier === 1 ? -450 : d.tier === 2 ? -180 : -120))
-                .force("center", d3.forceCenter(W / 2, H / 2))
-                .force("collide", d3.forceCollide(d => d.r + 24).strength(.9))
-                .on("tick", tick);
-        }
+    nodeSel.append("circle").attr("class", "bg")
+        .attr("r", d => d.r)
+        .attr("fill", d => hexA(d.color, d.tier === 0 ? .15 : .06))
+        .attr("stroke", d => d.color)
+        .attr("stroke-width", d => d.tier === 0 ? 2.5 : 1.5)
+        .attr("stroke-opacity", .85);
 
-        function tick() {
-            linkSel
-                .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-                .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-            nodeSel.attr("transform", d => {
-                pos[d.id] = { x: d.x, y: d.y };
-                return `translate(${d.x},${d.y})`;
-            });
-        }
+    nodeSel.filter(d => CH[d.id])
+        .append("circle")
+        .attr("cx", d => d.r * .68).attr("cy", d => -d.r * .68).attr("r", 5)
+        .attr("fill", d => hasHidden(d.id) ? "#68d391" : "#fc8181")
+        .attr("stroke", "#080c14").attr("stroke-width", 1.5);
 
-        // ── CLICK: progressive reveal ─────────────────────────────────────────────────
-        function onClickNode(d) {
-            const kids = CH[d.id] || [];
+    nodeSel.append("text")
+        .text(d => d.label)
+        .attr("text-anchor", "middle").attr("dominant-baseline", "central")
+        .attr("font-family", "'SF Mono','Fira Code',monospace")
+        .attr("font-size", d => d.tier === 0 ? 13 : d.tier === 1 ? 11 : 9.5)
+        .attr("font-weight", d => d.tier <= 1 ? 700 : 600)
+        .attr("fill", d => d.color).attr("pointer-events", "none");
 
-            if (!kids.length) {
-                // leaf: just open the panel
-                showPanel(d);
-                return;
-            }
+    if (newIds && newIds.length) {
+        nodeSel.filter(d => newIds.includes(d.id))
+            .attr("opacity", 0).transition().duration(320).attr("opacity", 1);
+        linkSel.attr("opacity", 0).transition().duration(380).attr("opacity", 1);
+    }
 
-            if (hasHidden(d.id)) {
-                // EXPAND: add only direct children of this node
-                const added = kids.filter(k => !visible.has(k));
-                added.forEach(k => visible.add(k));
-                showPanel(d);
-                render(added);
-            } else {
-                // COLLAPSE: recursively remove all descendants
-                collapseDescendants(d.id);
-                showPanel(d);
-                render([]);
-            }
-        }
+    if (sim) sim.stop();
+    sim = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id)
+            .distance(d => {
+                const st = N[d.source.id || d.source]?.tier;
+                const tt = N[d.target.id || d.target]?.tier;
+                if (st === 0 || tt === 0) return 175;
+                if (st === 1 || tt === 1) return 120;
+                return 90;
+            }).strength(1.3))
+        .force("charge", d3.forceManyBody().strength(d =>
+            d.tier === 0 ? -1000 : d.tier === 1 ? -450 : d.tier === 2 ? -180 : -120))
+        .force("center", d3.forceCenter(W / 2, H / 2))
+        .force("collide", d3.forceCollide(d => d.r + 24).strength(.9))
+        .on("tick", tick);
+}
 
-        function collapseDescendants(id) {
-            (CH[id] || []).forEach(k => {
-                visible.delete(k);
-                collapseDescendants(k);
-            });
-        }
+function tick() {
+    linkSel
+        .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+    nodeSel.attr("transform", d => {
+        pos[d.id] = { x: d.x, y: d.y };
+        return `translate(${d.x},${d.y})`;
+    });
+}
 
-        function hasHidden(id) {
-            return (CH[id] || []).some(k => !visible.has(k));
-        }
-
-        // ── PANEL ─────────────────────────────────────────────────────────────────────
-        function showPanel(d) {
-            const nd = N[d.id];
-            document.getElementById("pt").textContent = nd.tag;
-            const pn = document.getElementById("pn");
-            pn.textContent = nd.label; pn.style.color = nd.color;
-            document.getElementById("pd").textContent = nd.desc;
-            document.getElementById("pr").innerHTML =
-                nd.risks.map(r => `<div class="risk"><div class="dot ${r.s}"></div><span>${r.t}</span></div>`).join("");
-            document.getElementById("panel").classList.add("on");
-        }
-
-        svg.on("click", () => document.getElementById("panel").classList.remove("on"));
-
-        // ── TOOLTIP ───────────────────────────────────────────────────────────────────
-        const tip = document.getElementById("tip");
-        function showTip(e, d) {
-            const k = CH[d.id] || [];
-            const act = k.length ? (hasHidden(d.id) ? `▶ expand (${k.length} children)` : "▼ click to collapse") : "click for details";
-            tip.innerHTML = `<b style="color:${N[d.id].color}">${d.label}</b><br><span style="color:var(--muted);font-size:10px">${act}</span>`;
-            tip.style.opacity = "1"; moveTip(e);
-        }
-        function moveTip(e) { tip.style.left = (e.clientX + 14) + "px"; tip.style.top = (e.clientY - 8) + "px"; }
-        function hideTip() { tip.style.opacity = "0"; }
-
-        // ── CONTROLS ──────────────────────────────────────────────────────────────────
-        document.getElementById("b-reset").onclick = () =>
-            svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
-
-        document.getElementById("b-all").onclick = () => {
-            Object.keys(N).forEach(id => visible.add(id));
-            render([]);
-        };
-
-        document.getElementById("b-none").onclick = () => {
-            visible = new Set(["domain"]);
-            Object.keys(pos).forEach(k => delete pos[k]);
-            document.getElementById("panel").classList.remove("on");
-            render([]);
-            svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
-        };
-
-        window.addEventListener("resize", () => {
-            W = window.innerWidth; H = window.innerHeight - 48;
-            if (sim) sim.force("center", d3.forceCenter(W / 2, H / 2)).alpha(.2).restart();
-        });
-
-        // ── HELPERS ───────────────────────────────────────────────────────────────────
-        function hexA(hex, a) {
-            const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-            return `rgba(${r},${g},${b},${a})`;
-        }
-
-        // ── BOOT ──────────────────────────────────────────────────────────────────────
+function onClickNode(d) {
+    const kids = CH[d.id] || [];
+    if (!kids.length) { showPanel(d); return; }
+    if (hasHidden(d.id)) {
+        const added = kids.filter(k => !visible.has(k));
+        added.forEach(k => visible.add(k));
+        showPanel(d);
+        render(added);
+    } else {
+        collapseDescendants(d.id);
+        showPanel(d);
         render([]);
-    </script>
-</body>
+    }
+}
 
+function collapseDescendants(id) {
+    (CH[id] || []).forEach(k => { visible.delete(k); collapseDescendants(k); });
+}
+
+function hasHidden(id) {
+    return (CH[id] || []).some(k => !visible.has(k));
+}
+
+function showPanel(d) {
+    const nd = N[d.id];
+    document.getElementById("pt").textContent = nd.tag;
+    const pn = document.getElementById("pn");
+    pn.textContent = nd.label; pn.style.color = nd.color;
+    document.getElementById("pd").textContent = nd.desc;
+    document.getElementById("pr").innerHTML =
+        nd.risks.map(r => `<div class="risk"><div class="dot ${r.s}"></div><span>${r.t}</span></div>`).join("");
+    document.getElementById("panel").classList.add("on");
+}
+
+svg.on("click", () => document.getElementById("panel").classList.remove("on"));
+
+const tip = document.getElementById("tip");
+function showTip(e, d) {
+    const k = CH[d.id] || [];
+    const act = k.length ? (hasHidden(d.id) ? `expand (${k.length} children)` : "click to collapse") : "click for details";
+    tip.innerHTML = `<b style="color:${N[d.id].color}">${d.label}</b><br><span style="color:var(--muted);font-size:10px">${act}</span>`;
+    tip.style.opacity = "1"; moveTip(e);
+}
+function moveTip(e) { tip.style.left = (e.clientX + 14) + "px"; tip.style.top = (e.clientY - 8) + "px"; }
+function hideTip() { tip.style.opacity = "0"; }
+
+// ── NODE UPDATER — populates N with real scan data ─────────────────────────
+function updateNodes(scan) {
+    const d = scan.domain;
+    const cdn = detectCDN(scan.aRecs, scan.nsRecs, scan.allCnames);
+    const mailProv = detectMailProvider(scan.mxRecs);
+    const nsProv = detectNsProvider(scan.nsRecs);
+    const mxClean = scan.mxRecs.map(m => m.replace(/^\d+\s*/, '').replace(/\.$/, ''));
+    const nsClean = scan.nsRecs.map(n => n.replace(/\.$/, ''));
+
+    // domain
+    N.domain.label = d;
+    N.domain.desc = `Root domain: ${d}. ` +
+        (scan.aRecs.length ? `${scan.aRecs.length} A record(s): ${scan.aRecs.slice(0,3).join(', ')}.` : 'No A records found.') +
+        (nsClean.length ? ` NS: ${nsClean.slice(0,2).join(', ')}.` : '') +
+        ` ${scan.allSubdomains.length} subdomain(s) discovered.`;
+    N.domain.risks = [];
+    if (!scan.aRecs.length && !scan.aaaaRecs.length) N.domain.risks.push({s:'h', t:'No IP records — domain may be parked or inactive'});
+    if (!scan.spfRec) N.domain.risks.push({s:'c', t:'No SPF — email spoofing unrestricted'});
+    if (!scan.dmarcRecs.length) N.domain.risks.push({s:'c', t:'No DMARC — no email enforcement policy'});
+    if (scan.aRecs.length) N.domain.risks.push({s:'m', t:'IP: ' + scan.aRecs.slice(0,3).join(', ')});
+    if (!N.domain.risks.length) N.domain.risks.push({s:'m', t:'No obvious critical issues from DNS alone'});
+
+    // dns
+    N.dns.desc = `DNS for ${d}. Found ${scan.aRecs.length} A, ${scan.mxRecs.length} MX, ${scan.nsRecs.length} NS, ${scan.txtRecs.length} TXT records.` +
+        (nsProv ? ` DNS provider: ${nsProv}.` : '');
+    N.dns.risks = [];
+    N.dns.risks.push({s:'m', t:'NS: ' + (nsClean.slice(0,2).join(', ') || 'none found')});
+    if (nsClean.length <= 1) N.dns.risks.push({s:'h', t:'Only ' + nsClean.length + ' NS — single point of failure'});
+    if (nsProv) N.dns.risks.push({s:'m', t:'DNS provider: ' + nsProv});
+    N.dns.risks.push({s:'m', t:'Try zone transfer: dig axfr @' + (nsClean[0] || 'ns') + ' ' + d});
+
+    // email
+    const emailScore = [!!scan.spfRec, !!scan.dkimFound.length, !!scan.dmarcRecs.length].filter(Boolean).length;
+    N.email.desc = `Email security score: ${emailScore}/3. ` +
+        (mxClean.length ? `${mxClean.length} MX record(s)` + (mailProv ? ` via ${mailProv}` : '') + '. ' : 'No MX records. ') +
+        `SPF: ${scan.spfRec ? 'present' : 'MISSING'}. DKIM: ${scan.dkimFound.length ? 'found' : 'not found'}. DMARC: ${scan.dmarcRecs.length ? 'present' : 'MISSING'}.`;
+    N.email.risks = [];
+    if (!scan.spfRec) N.email.risks.push({s:'c', t:'No SPF — domain spoofing open'});
+    if (!scan.dkimFound.length) N.email.risks.push({s:'h', t:'No DKIM found via common selectors'});
+    if (!scan.dmarcRecs.length) N.email.risks.push({s:'c', t:'No DMARC — spoofed mail delivered unblocked'});
+    if (emailScore === 3) N.email.risks.push({s:'m', t:'SPF + DKIM + DMARC all present — verify policies'});
+    if (mailProv) N.email.risks.push({s:'m', t:'Mail provider: ' + mailProv});
+
+    // waf
+    if (cdn) {
+        N.waf.label = 'WAF / CDN';
+        N.waf.desc = `${cdn} detected as CDN/WAF for ${d}. Origin server is shielded. Bypass by finding pre-CDN IP via DNS history or Shodan.`;
+        N.waf.risks = [
+            {s:'h', t:'CDN: ' + cdn + ' — find origin IP to bypass all protections'},
+            {s:'h', t:'Check DNS history: SecurityTrails, ViewDNS'},
+            {s:'m', t:'Test cache poisoning via X-Forwarded-Host header'},
+        ];
+    } else {
+        N.waf.desc = `No CDN/WAF detected for ${d} from DNS analysis. Origin server appears directly exposed at ${scan.aRecs[0] || 'unknown'}.`;
+        N.waf.risks = [
+            {s:'c', t:'No WAF/CDN detected — origin directly accessible'},
+            {s:'h', t:'No DDoS protection layer visible from DNS'},
+            {s:'m', t:'Consider deploying Cloudflare, Fastly, or Akamai'},
+        ];
+    }
+
+    // subdomains
+    N.subdomains.desc = `${scan.allSubdomains.length} subdomain(s) discovered. ` +
+        `DNS brute-force: ${scan.foundSubs.length}. CT logs: ${scan.ctSubs.length}. HackerTarget: ${scan.htSubs.length}.` +
+        (scan.foundSubs.length ? ' Found: ' + scan.foundSubs.slice(0,3).map(s=>s.sub+'.'+d).join(', ') + (scan.foundSubs.length>3?'...':'') : '');
+    N.subdomains.risks = [];
+    if (scan.allSubdomains.length > 0) N.subdomains.risks.push({s:'h', t:`${scan.allSubdomains.length} subs = ${scan.allSubdomains.length} potential entry points`});
+    const riskySubs = scan.foundSubs.filter(s => ['dev','staging','test','beta','old','legacy','admin','dashboard','portal'].includes(s.sub));
+    if (riskySubs.length) N.subdomains.risks.push({s:'c', t:'High-risk subs live: ' + riskySubs.map(s=>s.sub).join(', ')});
+    const takeoverRisk = scan.foundSubs.filter(s => s.cname && isTakeoverCandidate(s.cname));
+    if (takeoverRisk.length) N.subdomains.risks.push({s:'c', t:'Takeover candidates: ' + takeoverRisk.map(s=>s.sub+'.'+d).join(', ')});
+    if (!scan.allSubdomains.length) N.subdomains.risks.push({s:'m', t:'No subdomains found via brute-force or CT logs'});
+
+    // tls
+    N.tls.desc = `TLS/SSL for ${d}. ` +
+        (scan.ctSubs.length ? `${scan.ctSubs.length} subdomain certs in CT logs.` : 'CT log query was CORS-restricted — check crt.sh manually.') +
+        ' Full TLS analysis requires a direct handshake (browser-restricted).';
+    N.tls.risks = [];
+    if (scan.ctSubs.length) N.tls.risks.push({s:'h', t:`${scan.ctSubs.length} subs exposed via Certificate Transparency`});
+    N.tls.risks.push({s:'m', t:'Full audit: ssllabs.com/ssltest/?d=' + d});
+
+    // hosting
+    N.hosting.desc = `Hosting for ${d}. ` +
+        (scan.aRecs.length ? `Resolves to: ${scan.aRecs.slice(0,3).join(', ')}.` : 'No IP found.') +
+        (cdn ? ` Behind ${cdn}.` : ' No CDN detected.');
+    N.hosting.risks = [];
+    if (!cdn && scan.aRecs.length) N.hosting.risks.push({s:'h', t:'Direct-hosted at ' + scan.aRecs[0] + ' — no WAF'});
+    N.hosting.risks.push({s:'m', t:'Headers: curl -I https://' + d});
+    N.hosting.risks.push({s:'m', t:'Bucket guess: ' + d + '.s3.amazonaws.com'});
+
+    // a-rec
+    if (scan.aRecs.length || scan.aaaaRecs.length) {
+        const allIPs = [...scan.aRecs, ...scan.aaaaRecs];
+        N['a-rec'].desc = `${scan.aRecs.length} A record(s): ${scan.aRecs.join(', ')}. ` +
+            (scan.aaaaRecs.length ? `${scan.aaaaRecs.length} AAAA: ${scan.aaaaRecs.slice(0,2).join(', ')}. ` : 'No IPv6. ') +
+            (cdn ? `(${cdn} CDN IPs — not origin)` : '(direct origin)');
+        N['a-rec'].risks = [];
+        if (cdn) {
+            N['a-rec'].risks.push({s:'m', t:'CDN IPs: ' + scan.aRecs.slice(0,2).join(', ')});
+            N['a-rec'].risks.push({s:'h', t:'Real origin behind ' + cdn + ' — leak via mail headers, CT, Shodan'});
+        } else {
+            N['a-rec'].risks.push({s:'h', t:'Origin exposed: ' + scan.aRecs.slice(0,2).join(', ')});
+            N['a-rec'].risks.push({s:'m', t:'Shodan: shodan.io/host/' + scan.aRecs[0]});
+        }
+    } else {
+        N['a-rec'].desc = `No A or AAAA records for ${d}.`;
+        N['a-rec'].risks = [{s:'m', t:'No IP — domain may be email-only or parked'}];
+    }
+
+    // mx-rec
+    if (mxClean.length) {
+        N['mx-rec'].desc = `${mxClean.length} MX record(s): ${mxClean.join(', ')}.` +
+            (mailProv ? ` Provider: ${mailProv}.` : '');
+        N['mx-rec'].risks = [{s:'m', t:'MX: ' + mxClean.slice(0,2).join(', ')}];
+        if (mailProv) N['mx-rec'].risks.push({s:'m', t:'Provider: ' + mailProv});
+        N['mx-rec'].risks.push({s:'h', t:'Mail server attack surface: ' + mxClean[0]});
+    } else {
+        N['mx-rec'].desc = `No MX records for ${d}. Domain does not accept email.`;
+        N['mx-rec'].risks = [{s:'m', t:'No MX records — domain cannot receive email'}];
+    }
+
+    // ns-rec
+    if (nsClean.length) {
+        N['ns-rec'].desc = `${nsClean.length} nameserver(s): ${nsClean.join(', ')}.` +
+            (nsProv ? ` Managed by ${nsProv}.` : '');
+        N['ns-rec'].risks = [];
+        if (nsClean.length < 2) N['ns-rec'].risks.push({s:'c', t:'Single NS = single point of failure'});
+        N['ns-rec'].risks.push({s:'h', t:'NS: ' + nsClean.slice(0,2).join(', ')});
+        if (nsProv) N['ns-rec'].risks.push({s:'m', t:'Provider: ' + nsProv});
+        N['ns-rec'].risks.push({s:'m', t:'AXFR: dig axfr @' + nsClean[0] + ' ' + d});
+    } else {
+        N['ns-rec'].desc = `No NS records found for ${d}.`;
+        N['ns-rec'].risks = [{s:'h', t:'No NS records found — DNS may be broken'}];
+    }
+
+    // txt-rec
+    const vendors = [];
+    const vendorMap = {
+        'google-site-verification':'Google','MS=':'Microsoft','atlassian':'Atlassian',
+        'docusign':'DocuSign','stripe':'Stripe','dropbox':'Dropbox','hubspot':'HubSpot',
+        'mailgun':'Mailgun','sendgrid':'SendGrid','facebook':'Meta','apple-domain':'Apple',
+        'zoom-domain':'Zoom','notion':'Notion','ahrefs':'Ahrefs'
+    };
+    scan.txtRecs.forEach(t => {
+        Object.entries(vendorMap).forEach(([k, v]) => {
+            if (t.toLowerCase().includes(k.toLowerCase()) && !vendors.includes(v)) vendors.push(v);
+        });
+    });
+    N['txt-rec'].desc = `${scan.txtRecs.length} TXT record(s).` +
+        (vendors.length ? ` Vendors detected: ${vendors.join(', ')}.` : '') +
+        (scan.spfRec ? ' SPF present.' : ' No SPF.') +
+        (scan.dkimFound.length ? ' DKIM found.' : '');
+    N['txt-rec'].risks = [];
+    if (vendors.length) N['txt-rec'].risks.push({s:'m', t:'SaaS stack: ' + vendors.join(', ')});
+    N['txt-rec'].risks.push({s:'m', t:`${scan.txtRecs.length} TXT records enumerate tech stack`});
+
+    // cname-rec
+    const cnameFound = scan.foundSubs.filter(s => s.cname);
+    const takeoverCandidates = cnameFound.filter(s => isTakeoverCandidate(s.cname));
+    N['cname-rec'].desc = cnameFound.length
+        ? `${cnameFound.length} CNAME-resolved subdomains found. Examples: ` +
+          cnameFound.slice(0,2).map(s => s.sub+'.'+d+' → '+s.cname).join('; ')
+        : `No CNAME records found via subdomain brute-force for ${d}.`;
+    N['cname-rec'].risks = [];
+    if (takeoverCandidates.length) {
+        N['cname-rec'].risks.push({s:'c', t:'Takeover risk: ' + takeoverCandidates.map(s=>s.sub+'.'+d).join(', ')});
+        takeoverCandidates.forEach(s => N['cname-rec'].risks.push({s:'c', t:s.sub+'.'+d+' → '+s.cname}));
+    } else if (cnameFound.length) {
+        N['cname-rec'].risks.push({s:'m', t:'No obvious dangling CNAMEs detected'});
+        N['cname-rec'].risks.push({s:'h', t:'Verify each CNAME target is still claimed'});
+    } else {
+        N['cname-rec'].risks.push({s:'m', t:'No CNAME-resolved subdomains via brute-force'});
+    }
+
+    // spf
+    if (scan.spfRec) {
+        const spf = scan.spfRec;
+        N.spf.desc = `SPF record: ${spf}`;
+        N.spf.risks = [];
+        if (spf.includes('+all')) N.spf.risks.push({s:'c', t:'Uses +all — ANY server can send as ' + d + '!'});
+        else if (spf.includes('~all')) N.spf.risks.push({s:'h', t:'Uses ~all (softfail) — not strictly enforced'});
+        else if (spf.includes('-all')) N.spf.risks.push({s:'m', t:'Uses -all (hardfail) — correct enforcement'});
+        else if (spf.includes('?all')) N.spf.risks.push({s:'c', t:'Uses ?all (neutral) — effectively no enforcement'});
+        const lookups = (spf.match(/\b(include:|a\b|mx\b|ptr\b|exists:)/g) || []).length;
+        if (lookups > 10) N.spf.risks.push({s:'h', t:`${lookups} DNS lookups exceed 10-lookup limit → permerror`});
+        const incs = (spf.match(/include:(\S+)/g) || []).map(i => i.replace('include:',''));
+        if (incs.length) N.spf.risks.push({s:'m', t:'Delegates to: ' + incs.slice(0,3).join(', ')});
+    } else {
+        N.spf.desc = `No SPF record at ${d}. Any server on the internet can send email as @${d}.`;
+        N.spf.risks = [
+            {s:'c', t:'No SPF — email spoofing completely open'},
+            {s:'h', t:'Add: v=spf1 include:... -all (minimum)'},
+        ];
+    }
+
+    // dkim
+    if (scan.dkimFound.length) {
+        N.dkim.desc = `DKIM found. Active selectors: ${scan.dkimFound.map(k=>k.sel).join(', ')}.`;
+        N.dkim.risks = [{s:'m', t:'Selectors: ' + scan.dkimFound.map(k=>k.sel).join(', ')}];
+        scan.dkimFound.forEach(k => {
+            const pm = k.rec.match(/p=([A-Za-z0-9+/=]+)/);
+            if (pm && pm[1].length < 120) N.dkim.risks.unshift({s:'h', t:`Short key on "${k.sel}" — may be weak 512/768-bit`});
+        });
+    } else {
+        N.dkim.desc = `No DKIM records found for ${d} using ${DKIM_SELECTORS.length} common selectors. A custom selector may still exist.`;
+        N.dkim.risks = [
+            {s:'h', t:'No DKIM via common selectors — custom selector?'},
+            {s:'m', t:'Check: <selector>._domainkey.' + d},
+        ];
+    }
+
+    // dmarc
+    if (scan.dmarcRecs.length) {
+        const dm = scan.dmarcRecs[0];
+        N.dmarc.desc = `DMARC at _dmarc.${d}: ${dm}`;
+        N.dmarc.risks = [];
+        if (dm.includes('p=none')) N.dmarc.risks.push({s:'c', t:'p=none — monitoring only, spoofed mail still delivered!'});
+        else if (dm.includes('p=quarantine')) N.dmarc.risks.push({s:'h', t:'p=quarantine — partial protection (spam folder only)'});
+        else if (dm.includes('p=reject')) N.dmarc.risks.push({s:'m', t:'p=reject — strict enforcement'});
+        const pct = dm.match(/pct=(\d+)/);
+        if (pct && +pct[1] < 100) N.dmarc.risks.push({s:'h', t:`pct=${pct[1]}% — only ${pct[1]}% of traffic enforced`});
+        const rua = dm.match(/rua=([^;]+)/);
+        if (rua) N.dmarc.risks.push({s:'m', t:'Aggregate reports to: ' + rua[1].trim()});
+    } else {
+        N.dmarc.desc = `No DMARC at _dmarc.${d}. Spoofed emails bypass all enforcement and reach inboxes directly.`;
+        N.dmarc.risks = [
+            {s:'c', t:'No DMARC — spoofed mail delivered to inboxes'},
+            {s:'h', t:'Recommended: v=DMARC1; p=reject; rua=mailto:dmarc@' + d},
+        ];
+    }
+
+    // smtp
+    N.smtp.desc = `SMTP for ${d}. ${mxClean.length ? 'Mail servers: ' + mxClean.slice(0,2).join(', ') + '.' : 'No MX records.'} Port scanning (25/587/465) is not possible from the browser.`;
+    N.smtp.risks = [
+        {s:'h', t:'Open relay test: swaks --to test@example.com --server ' + (mxClean[0] || d)},
+        {s:'m', t:'STARTTLS enforcement not checkable from browser'},
+        {s:'m', t:'MX: ' + (mxClean.slice(0,1).join('') || 'none found')},
+    ];
+
+    // origin
+    N.origin.desc = cdn
+        ? `Real origin is behind ${cdn} for ${d}. DNS resolves to CDN IPs: ${scan.aRecs.slice(0,3).join(', ')}. True origin IP differs.`
+        : `Direct origin for ${d}: ${scan.aRecs.slice(0,3).join(', ') || 'no IP found'}.`;
+    N.origin.risks = [];
+    if (cdn) {
+        N.origin.risks.push({s:'c', t:'Uncover origin: mail headers, Censys, Shodan, DNS history'});
+        N.origin.risks.push({s:'h', t:'CDN IPs shown: ' + scan.aRecs.slice(0,2).join(', ')});
+    } else if (scan.aRecs.length) {
+        N.origin.risks.push({s:'c', t:'Origin exposed: ' + scan.aRecs.slice(0,2).join(', ')});
+        N.origin.risks.push({s:'h', t:'Shodan: shodan.io/host/' + scan.aRecs[0]});
+    } else {
+        N.origin.risks.push({s:'m', t:'No origin IP resolved'});
+    }
+
+    // proxy
+    N.proxy.desc = cdn
+        ? `${cdn} acts as reverse proxy for ${d}. Routing misconfigurations can expose internal services or allow SSRF.`
+        : `No reverse proxy/CDN detected. ${scan.aRecs[0] ? scan.aRecs[0] + ' appears to be the direct origin.' : ''}`;
+    N.proxy.risks = [
+        {s:'h', t:cdn ? 'Host header injection: -H "Host: ' + d + '" via CDN IP' : 'No proxy — origin directly exposed'},
+        {s:'m', t:'HTTP request smuggling via proxy misconfiguration'},
+        {s:'m', t:'SSRF: try internal metadata endpoints (169.254.169.254)'},
+    ];
+
+    // headers
+    N.headers.desc = `Security headers for ${d} cannot be fetched browser-side (CORS). Use securityheaders.com or curl for a full analysis.`;
+    N.headers.risks = [
+        {s:'h', t:'Check: securityheaders.com/?q=' + d},
+        {s:'m', t:'curl -sI https://' + d + ' | grep -iE "csp|hsts|x-frame|x-content"'},
+        {s:'m', t:'Missing headers enable: XSS, clickjacking, MIME sniffing'},
+    ];
+
+    // api
+    const apiSub = scan.foundSubs.find(s => s.sub === 'api');
+    if (apiSub) {
+        N.api.label = 'api.' + d;
+        N.api.desc = `api.${d} resolves to ${apiSub.ips.join(', ')}.` +
+            (apiSub.cname ? ` Via CNAME: ${apiSub.cname}.` : '') + ' Live API endpoint detected.';
+        N.api.risks = [
+            {s:'c', t:'api.' + d + ' is live at ' + apiSub.ips[0]},
+            {s:'h', t:'Check: api.' + d + '/swagger, /openapi.json, /graphql'},
+            {s:'h', t:'CORS: curl -H "Origin: https://evil.com" https://api.' + d},
+        ];
+    } else {
+        N.api.label = 'api.*';
+        N.api.desc = `api.${d} does not resolve via DNS.`;
+        N.api.risks = [{s:'m', t:'api.' + d + ' not found via DNS brute-force'}];
+    }
+
+    // staging
+    const devSubs = scan.foundSubs.filter(s => ['dev','staging','test','beta','qa','uat','pre','preprod'].includes(s.sub));
+    if (devSubs.length) {
+        N.staging.label = devSubs.map(s=>s.sub).join('/') + '.*';
+        N.staging.desc = `Non-production environments found: ${devSubs.map(s=>s.sub+'.'+d+' ('+s.ips[0]+')').join(', ')}.`;
+        N.staging.risks = [
+            {s:'c', t:'Live non-prod: ' + devSubs.map(s=>s.sub+'.'+d).join(', ')},
+            {s:'h', t:'Dev envs often expose debug endpoints and production data'},
+            {s:'m', t:'Check for unauthenticated access and weaker auth'},
+        ];
+    } else {
+        N.staging.label = 'dev / staging.*';
+        N.staging.desc = `No dev/staging/test subdomains found via DNS for ${d}.`;
+        N.staging.risks = [{s:'m', t:'No common dev subdomains found via DNS brute-force'}];
+    }
+
+    // admin
+    const adminSub = scan.foundSubs.find(s => ['admin','dashboard','portal','manage','cms','cp','cpanel','whm'].includes(s.sub));
+    if (adminSub) {
+        N.admin.label = adminSub.sub + '.*';
+        N.admin.desc = `Admin panel found: ${adminSub.sub}.${d} at ${adminSub.ips.join(', ')}.` +
+            (adminSub.cname ? ` Via CNAME: ${adminSub.cname}.` : '') + ' Publicly accessible.';
+        N.admin.risks = [
+            {s:'c', t:'Admin panel live: ' + adminSub.sub + '.' + d + ' (' + adminSub.ips[0] + ')'},
+            {s:'h', t:'Test default/weak credentials'},
+            {s:'h', t:'Verify MFA is enforced on all admin accounts'},
+        ];
+    } else {
+        N.admin.label = 'admin.*';
+        N.admin.desc = `No admin/dashboard/portal subdomains found via DNS for ${d}.`;
+        N.admin.risks = [{s:'m', t:'No admin subdomains found via DNS brute-force'}];
+    }
+
+    // ct-logs
+    if (scan.ctSubs.length) {
+        N['ct-logs'].desc = `${scan.ctSubs.length} unique subdomain(s) in Certificate Transparency logs: ${scan.ctSubs.slice(0,4).join(', ')}${scan.ctSubs.length>4?' +' + (scan.ctSubs.length-4) + ' more':''}. Source: crt.sh.`;
+        N['ct-logs'].risks = [
+            {s:'h', t:`${scan.ctSubs.length} subdomains publicly exposed via crt.sh`},
+            {s:'m', t:'Internal hostnames may be leaked in cert SANs'},
+            {s:'m', t:'crt.sh/?q=%25.' + d},
+        ];
+    } else {
+        N['ct-logs'].desc = `CT log query for ${d} was blocked by browser CORS policy. Check crt.sh manually for full subdomain enumeration.`;
+        N['ct-logs'].risks = [
+            {s:'h', t:'Manual: crt.sh/?q=%25.' + d},
+            {s:'m', t:'CT logs expose all certificates ever issued for this domain'},
+        ];
+    }
+
+    // cert-expire
+    N['cert-expire'].desc = `TLS certificate expiry for ${d} requires a direct handshake — not accessible from browser. Use SSL Labs or openssl for full assessment.`;
+    N['cert-expire'].risks = [
+        {s:'h', t:'SSL Labs: ssllabs.com/ssltest/?d=' + d},
+        {s:'m', t:'openssl s_client -connect ' + d + ':443 2>/dev/null | grep "Not After"'},
+    ];
+
+    // cloud-storage
+    const storageSubs = scan.foundSubs.filter(s => ['static','cdn','assets','media','files','s3','storage','images','uploads','backup'].includes(s.sub));
+    N['cloud-storage'].desc = `Cloud storage check for ${d}. ` +
+        (storageSubs.length ? `Storage-related subdomains: ${storageSubs.map(s=>s.sub+'.'+d).join(', ')}.` : 'No obvious storage subdomains found via DNS.') +
+        ' Bucket access requires direct HTTP enumeration.';
+    N['cloud-storage'].risks = [];
+    if (storageSubs.length) {
+        N['cloud-storage'].risks.push({s:'c', t:'Storage subs live: ' + storageSubs.map(s=>s.sub+'.'+d).join(', ')});
+        N['cloud-storage'].risks.push({s:'h', t:'Test public listing: curl ' + storageSubs[0].ips[0]});
+    }
+    N['cloud-storage'].risks.push({s:'h', t:'S3 bucket guess: ' + d.replace(/\./g,'-') + '.s3.amazonaws.com'});
+    N['cloud-storage'].risks.push({s:'m', t:'GCS: storage.googleapis.com/' + d});
+
+    // ports
+    N.ports.desc = `Port scanning from a browser is not possible. For ${d} (${scan.aRecs[0] || 'IP unknown'}), use Shodan, Masscan, or Nmap externally.`;
+    N.ports.risks = [
+        {s:'h', t:scan.aRecs[0] ? 'Shodan: shodan.io/host/' + scan.aRecs[0] : 'Resolve IP first, then scan'},
+        {s:'m', t:'nmap -sV -p 22,80,443,3306,5432,6379,8080,8443 ' + (scan.aRecs[0] || d)},
+        {s:'m', t:'Common exposures: SSH, RDP, databases, Redis without auth'},
+    ];
+}
+
+// ── SCAN RUNNER ───────────────────────────────────────────────────────────────
+async function runScan(domain) {
+    const btn = document.getElementById('scan-btn');
+    const bar = document.getElementById('progress-bar');
+    const input = document.getElementById('domain-input');
+    btn.disabled = true;
+    btn.textContent = 'SCANNING…';
+    bar.style.width = '5%';
+
+    const setP = p => { bar.style.width = p + '%'; };
+
+    try {
+        // Phase 1: Core DNS records (parallel)
+        setP(10);
+        const [aRes, aaaaRes, mxRes, nsRes, txtRes] = await Promise.all([
+            doh(domain, 'A'),
+            doh(domain, 'AAAA'),
+            doh(domain, 'MX'),
+            doh(domain, 'NS'),
+            doh(domain, 'TXT'),
+        ]);
+
+        // Fail fast if domain doesn't exist
+        if (nsRes?.Status === 3 && (!aRes || aRes.Status === 3)) {
+            throw new Error('NXDOMAIN');
+        }
+        setP(20);
+
+        // Phase 2: DMARC
+        const dmarcRes = await doh('_dmarc.' + domain, 'TXT');
+        setP(28);
+
+        // Phase 3: DKIM selectors (parallel)
+        const dkimRes = await Promise.all(
+            DKIM_SELECTORS.map(sel =>
+                doh(sel + '._domainkey.' + domain, 'TXT').then(r => ({ sel, r }))
+            )
+        );
+        const dkimFound = dkimRes
+            .filter(x => x.r?.Answer?.some(a => (a.data || '').includes('v=DKIM1')))
+            .map(x => ({
+                sel: x.sel,
+                rec: (x.r.Answer.find(a => (a.data || '').includes('v=DKIM1'))?.data || '').replace(/^"|"$/g, '')
+            }));
+        setP(48);
+
+        // Phase 4: Subdomain brute-force with CNAME detection (parallel)
+        const subResults = await Promise.all(
+            COMMON_SUBS.map(async sub => {
+                const r = await doh(sub + '.' + domain, 'A');
+                const ips = r?.Answer?.filter(a => a.type === 1).map(a => a.data) || [];
+                const cnames = r?.Answer?.filter(a => a.type === 5).map(a => (a.data || '').replace(/\.$/, '')) || [];
+                return { sub, ips, cname: cnames[0] || null };
+            })
+        );
+        const foundSubs = subResults.filter(s => s.ips.length || s.cname);
+        setP(68);
+
+        // Phase 5: Certificate Transparency via crt.sh (CORS — may fail)
+        let ctSubs = [];
+        try {
+            const ctR = await fetchSafe(`https://crt.sh/?q=%25.${domain}&output=json`, 7000);
+            if (ctR && ctR.ok) {
+                const ctData = await ctR.json();
+                const names = ctData.flatMap(c => (c.name_value || '').split('\n'));
+                ctSubs = [...new Set(
+                    names.map(n => n.replace(/^\*\./, '').trim())
+                         .filter(n => n.endsWith('.' + domain))
+                )];
+            }
+        } catch (_) { /* CORS or timeout */ }
+        setP(82);
+
+        // Phase 6: HackerTarget subdomain API (may fail due to rate limits)
+        let htSubs = [];
+        try {
+            const htR = await fetchSafe(`https://api.hackertarget.com/hostsearch/?q=${encodeURIComponent(domain)}`, 6000);
+            if (htR && htR.ok) {
+                const txt = await htR.text();
+                if (!txt.includes('error') && !txt.includes('API count') && !txt.includes('<html')) {
+                    htSubs = txt.trim().split('\n')
+                        .map(l => l.split(',')[0].trim())
+                        .filter(h => h.endsWith('.' + domain) && h !== domain);
+                }
+            }
+        } catch (_) { /* rate limit or CORS */ }
+        setP(92);
+
+        // Compile final results
+        const allSubdomains = [...new Set([
+            ...foundSubs.map(s => s.sub + '.' + domain),
+            ...ctSubs,
+            ...htSubs
+        ])];
+        const allCnames = foundSubs.filter(s => s.cname).map(s => s.cname);
+
+        const scan = {
+            domain,
+            aRecs:    parseAnswers(aRes,    1),
+            aaaaRecs: parseAnswers(aaaaRes, 28),
+            mxRecs:   parseAnswers(mxRes,   15),
+            nsRecs:   parseAnswers(nsRes,   2),
+            txtRecs:  parseAnswers(txtRes,  16),
+            dmarcRecs: parseAnswers(dmarcRes, 16),
+            spfRec:   parseAnswers(txtRes,  16).find(t => t.includes('v=spf1')) || null,
+            dkimFound,
+            foundSubs,
+            ctSubs,
+            htSubs,
+            allSubdomains,
+            allCnames,
+        };
+
+        // Update all node data with real findings
+        updateNodes(scan);
+        setP(100);
+
+        // Reset and re-render graph
+        visible = new Set(['domain']);
+        Object.keys(pos).forEach(k => delete pos[k]);
+        document.getElementById('panel').classList.remove('on');
+        render([]);
+        svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity);
+
+        setTimeout(() => { bar.style.width = '0%'; }, 1200);
+        btn.textContent = 'RESCAN';
+        btn.disabled = false;
+
+    } catch (err) {
+        bar.style.width = '0%';
+        btn.textContent = 'RETRY';
+        btn.disabled = false;
+        if (err.message === 'NXDOMAIN') {
+            input.value = '';
+            input.placeholder = 'Domain not found (NXDOMAIN) — check and try again';
+        } else {
+            input.placeholder = 'Scan failed — check network or domain and retry';
+        }
+        setTimeout(() => { input.placeholder = 'enter target domain \u2014 e.g. example.com'; }, 4500);
+    }
+}
+
+// ── CONTROLS ──────────────────────────────────────────────────────────────────
+document.getElementById("b-reset").onclick = () =>
+    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+
+document.getElementById("b-all").onclick = () => {
+    Object.keys(N).forEach(id => visible.add(id));
+    render([]);
+};
+
+document.getElementById("b-none").onclick = () => {
+    visible = new Set(["domain"]);
+    Object.keys(pos).forEach(k => delete pos[k]);
+    document.getElementById("panel").classList.remove("on");
+    render([]);
+    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+};
+
+// ── SCAN BUTTON & ENTER KEY ───────────────────────────────────────────────────
+document.getElementById('scan-btn').addEventListener('click', () => {
+    const raw = document.getElementById('domain-input').value;
+    const domain = raw.trim().toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/.*$/, '')
+        .replace(/:\d+$/, '');
+    if (!domain) return;
+    document.getElementById('domain-input').value = domain;
+    runScan(domain);
+});
+
+document.getElementById('domain-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('scan-btn').click();
+});
+
+// ── RESIZE ────────────────────────────────────────────────────────────────────
+window.addEventListener("resize", () => {
+    W = window.innerWidth; H = window.innerHeight - 48;
+    if (sim) sim.force("center", d3.forceCenter(W / 2, H / 2)).alpha(.2).restart();
+});
+
+// ── HELPER ────────────────────────────────────────────────────────────────────
+function hexA(hex, a) {
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${a})`;
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+render([]);
+</script>
+</body>
 </html>
